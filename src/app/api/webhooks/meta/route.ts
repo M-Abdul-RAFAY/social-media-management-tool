@@ -1,0 +1,200 @@
+import { NextRequest } from "next/server";
+import { dbConnect } from "@/lib/mongodb";
+import User from "@/models/User";
+import Page from "@/models/Page";
+import Review from "@/models/Review";
+import Post from "@/models/Post";
+import Notification from "@/models/Notification";
+import { verifyWebhookSignature } from "@/lib/token";
+import { analyzeSentiment } from "@/lib/sentiment";
+import { MetaWebhookPayload } from "@/types/meta";
+
+interface WebhookChange {
+  field: string;
+  value: Record<string, unknown>;
+}
+
+interface PageDocument {
+  _id: string;
+  metaPageId: string;
+  userId: string;
+  name: string;
+}
+
+interface UserDocument {
+  _id: string;
+  name: string;
+}
+
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const mode = searchParams.get("hub.mode");
+  const token = searchParams.get("hub.verify_token");
+  const challenge = searchParams.get("hub.challenge");
+
+  const verifyToken = process.env.META_WEBHOOK_VERIFY_TOKEN;
+
+  if (mode === "subscribe" && token === verifyToken) {
+    console.log("Webhook verified");
+    return new Response(challenge, { status: 200 });
+  }
+
+  return new Response("Forbidden", { status: 403 });
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const signature = request.headers.get("x-hub-signature-256");
+    const body = await request.text();
+
+    if (
+      !signature ||
+      !verifyWebhookSignature(body, signature, process.env.META_WEBHOOK_SECRET!)
+    ) {
+      return new Response("Invalid signature", { status: 403 });
+    }
+
+    const payload: MetaWebhookPayload = JSON.parse(body);
+
+    await dbConnect();
+
+    for (const entry of payload.entry) {
+      for (const change of entry.changes) {
+        await processWebhookChange(entry.id, change);
+      }
+    }
+
+    return new Response("OK", { status: 200 });
+  } catch (error) {
+    console.error("Webhook processing error:", error);
+    return new Response("Internal Server Error", { status: 500 });
+  }
+}
+
+async function processWebhookChange(pageId: string, change: WebhookChange) {
+  const { field, value } = change;
+
+  try {
+    const page: PageDocument | null = await Page.findOne({
+      metaPageId: pageId,
+    });
+    if (!page) {
+      console.log(`Page not found: ${pageId}`);
+      return;
+    }
+
+    const user: UserDocument | null = await User.findById(page.userId);
+    if (!user) {
+      console.log(`User not found for page: ${pageId}`);
+      return;
+    }
+
+    switch (field) {
+      case "ratings":
+        await handleRatingChange(page, user, value);
+        break;
+      case "feed":
+        await handleFeedChange(page, user, value);
+        break;
+      case "conversations":
+        await handleConversationChange(page, user, value);
+        break;
+      default:
+        console.log(`Unhandled webhook field: ${field}`);
+    }
+  } catch (error) {
+    console.error(`Error processing webhook change for page ${pageId}:`, error);
+  }
+}
+
+async function handleRatingChange(
+  page: PageDocument,
+  user: UserDocument,
+  value: Record<string, unknown>
+) {
+  if (value.verb === "add") {
+    const reviewData = value.rating as Record<string, unknown>;
+    const sentimentResult = analyzeSentiment(
+      (reviewData.review_text as string) || ""
+    );
+
+    await Review.findOneAndUpdate(
+      { metaReviewId: reviewData.id as string },
+      {
+        pageId: page._id,
+        reviewerName: reviewData.reviewer_name as string,
+        reviewerId: reviewData.reviewer_id as string,
+        message: reviewData.review_text as string,
+        rating: reviewData.rating as number,
+        sentiment: sentimentResult.sentiment,
+        recommendationType: reviewData.recommendation_type as string,
+      },
+      { upsert: true, new: true }
+    );
+
+    // Create notification
+    await Notification.create({
+      userId: user._id,
+      type: (reviewData.rating as number) >= 4 ? "success" : "warning",
+      title: "New Review",
+      message: `New ${reviewData.rating}-star review on ${page.name}`,
+      data: { pageId: page._id, reviewId: reviewData.id },
+    });
+  }
+}
+
+async function handleFeedChange(
+  page: PageDocument,
+  user: UserDocument,
+  value: Record<string, unknown>
+) {
+  if (value.verb === "add") {
+    const postData = value.post as Record<string, unknown>;
+
+    await Post.findOneAndUpdate(
+      { metaPostId: postData.id as string },
+      {
+        pageId: page._id,
+        content:
+          (postData.message as string) || (postData.story as string) || "",
+        type: postData.type as string,
+        status: "published",
+        publishedAt: new Date(postData.created_time as string),
+        engagement: {
+          likes: 0,
+          comments: 0,
+          shares: 0,
+        },
+        permalink: postData.permalink_url as string,
+      },
+      { upsert: true, new: true }
+    );
+
+    // Create notification
+    await Notification.create({
+      userId: user._id,
+      type: "info",
+      title: "New Post Published",
+      message: `Post published on ${page.name}`,
+      data: { pageId: page._id, postId: postData.id },
+    });
+  }
+}
+
+async function handleConversationChange(
+  page: PageDocument,
+  user: UserDocument,
+  value: Record<string, unknown>
+) {
+  // Handle messages and comments
+  if (value.verb === "add") {
+    // Create notification for new messages/comments
+    await Notification.create({
+      userId: user._id,
+      type: "info",
+      title: "New Message",
+      message: `New message on ${page.name}`,
+      data: { pageId: page._id, conversationId: value.conversation_id },
+    });
+  }
+}
