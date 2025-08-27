@@ -14,6 +14,51 @@ import {
 
 export async function GET() {
   try {
+    // Development mode: return mock data
+    if (process.env.NODE_ENV === "development") {
+      return NextResponse.json({
+        success: true,
+        data: [
+          {
+            _id: "fb_page_123",
+            metaPageId: "fb_page_123",
+            name: "My Awesome Business",
+            category: "Business",
+            platform: "facebook",
+            isActive: true,
+            followers: 1250,
+            profilePicture: "https://via.placeholder.com/300",
+            about: "A sample business page for testing the dashboard",
+            website: "https://myawesomebusiness.com",
+            stats: {
+              posts: 15,
+              engagement: 342,
+              reviews: 12,
+              avgRating: 4.5,
+            },
+          },
+          {
+            _id: "ig_page_456",
+            metaPageId: "ig_page_456",
+            name: "My Awesome Business",
+            category: "Business",
+            platform: "instagram",
+            isActive: true,
+            followers: 892,
+            profilePicture: "https://via.placeholder.com/300",
+            about: "Official Instagram account",
+            website: "https://myawesomebusiness.com",
+            stats: {
+              posts: 28,
+              engagement: 587,
+              reviews: 8,
+              avgRating: 4.2,
+            },
+          },
+        ],
+      });
+    }
+
     const session = await getServerSession();
     if (!session?.user?.email) {
       throw new AuthenticationError();

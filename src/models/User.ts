@@ -19,9 +19,9 @@ const UserSchema = new Schema<UserDocument>(
   }
 );
 
-// Indexes for performance
-UserSchema.index({ email: 1 });
-UserSchema.index({ metaId: 1 });
+// Remove duplicate indexes since unique: true already creates them
+// UserSchema.index({ email: 1 }); - removed (unique: true already creates this)
+// UserSchema.index({ metaId: 1 }); - removed (unique: true already creates this)
 
 const User: Model<UserDocument> =
   mongoose.models.User || mongoose.model<UserDocument>("User", UserSchema);

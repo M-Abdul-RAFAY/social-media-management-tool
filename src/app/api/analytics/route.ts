@@ -14,6 +14,44 @@ import {
 
 export async function GET(request: NextRequest) {
   try {
+    // Development mode: return mock data
+    if (process.env.NODE_ENV === "development") {
+      return NextResponse.json({
+        success: true,
+        data: {
+          overview: {
+            totalFollowers: 2142,
+            totalPosts: 45,
+            totalEngagement: 1876,
+            totalReviews: 23,
+            avgRating: 4.3,
+          },
+          periodStats: {
+            followers: { current: 2142, change: +12, percentage: +0.6 },
+            posts: { current: 8, change: +3, percentage: +60.0 },
+            engagement: { current: 342, change: -15, percentage: -4.2 },
+            reviews: { current: 5, change: +2, percentage: +66.7 },
+          },
+          chartData: {
+            followers: [
+              { date: "2025-01-01", facebook: 1200, instagram: 800 },
+              { date: "2025-01-02", facebook: 1205, instagram: 805 },
+              { date: "2025-01-03", facebook: 1210, instagram: 812 },
+              { date: "2025-01-04", facebook: 1215, instagram: 820 },
+              { date: "2025-01-05", facebook: 1225, instagram: 825 },
+            ],
+            engagement: [
+              { date: "2025-01-01", likes: 45, comments: 12, shares: 8 },
+              { date: "2025-01-02", likes: 52, comments: 15, shares: 10 },
+              { date: "2025-01-03", likes: 38, comments: 8, shares: 6 },
+              { date: "2025-01-04", likes: 63, comments: 18, shares: 12 },
+              { date: "2025-01-05", likes: 71, comments: 22, shares: 15 },
+            ],
+          },
+        },
+      });
+    }
+
     const session = await getServerSession();
     if (!session?.user?.email) {
       throw new AuthenticationError();

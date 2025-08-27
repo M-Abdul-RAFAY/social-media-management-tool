@@ -25,9 +25,9 @@ const PageSchema = new Schema<PageDocument>(
   }
 );
 
-// Indexes for performance
+// Indexes for performance (removing duplicate index since unique: true already creates it)
 PageSchema.index({ userId: 1 });
-PageSchema.index({ metaPageId: 1 });
+// PageSchema.index({ metaPageId: 1 }); - removed (unique: true already creates this)
 PageSchema.index({ platform: 1 });
 
 const Page: Model<PageDocument> =

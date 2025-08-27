@@ -41,9 +41,24 @@ export default function DashboardPage() {
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hasAdvancedPermissions, setHasAdvancedPermissions] = useState(false);
 
   useEffect(() => {
+    console.log(
+      "Dashboard useEffect - status:",
+      status,
+      "NODE_ENV:",
+      process.env.NODE_ENV
+    );
+
+    // Skip authentication check in development mode
+    if (process.env.NODE_ENV === "development") {
+      console.log("Development mode - skipping auth check");
+      return;
+    }
+
     if (status === "unauthenticated") {
+      console.log("Unauthenticated - redirecting to signin");
       router.push("/auth/signin");
     }
   }, [status, router]);
@@ -130,6 +145,101 @@ export default function DashboardPage() {
         </div>
         <div className="mt-4 sm:mt-0">
           <PageSwitcher onPageChange={setSelectedPage} />
+        </div>
+      </div>
+
+      {/* Permissions Status Banner */}
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+        <div className="flex">
+          <div className="flex-shrink-0">
+            <svg
+              className="h-5 w-5 text-amber-400"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fillRule="evenodd"
+                d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </div>
+          <div className="ml-3">
+            <h3 className="text-sm font-medium text-amber-800">
+              Basic Access Mode - Limited Functionality
+            </h3>
+            <div className="mt-2 text-sm text-amber-700">
+              <p className="mb-2">
+                You&apos;re currently using basic permissions. To unlock full
+                social media management features:
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="font-medium mb-1">✅ Currently Available:</p>
+                  <ul className="list-disc list-inside text-xs space-y-1">
+                    <li>Profile information</li>
+                    <li>Basic authentication</li>
+                    <li>Demo dashboard</li>
+                  </ul>
+                </div>
+                <div>
+                  <p className="font-medium mb-1">
+                    🔒 Requires Business Verification:
+                  </p>
+                  <ul className="list-disc list-inside text-xs space-y-1">
+                    <li>Facebook/Instagram pages access</li>
+                    <li>Post creation & management</li>
+                    <li>Analytics & insights</li>
+                    <li>Review management</li>
+                  </ul>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <a
+                  href="https://developers.facebook.com/docs/development/release/business-verification"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center px-3 py-1 border border-amber-300 text-xs font-medium rounded-md text-amber-800 bg-amber-50 hover:bg-amber-100"
+                >
+                  Business Verification Guide
+                  <svg
+                    className="ml-1 w-3 h-3"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                    />
+                  </svg>
+                </a>
+                <a
+                  href="https://developers.facebook.com/docs/app-review"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center px-3 py-1 border border-amber-300 text-xs font-medium rounded-md text-amber-800 bg-amber-50 hover:bg-amber-100"
+                >
+                  App Review Process
+                  <svg
+                    className="ml-1 w-3 h-3"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                    />
+                  </svg>
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

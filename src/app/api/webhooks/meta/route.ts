@@ -1,11 +1,11 @@
 import { NextRequest } from "next/server";
+import crypto from "crypto";
 import { dbConnect } from "@/lib/mongodb";
 import User from "@/models/User";
 import Page from "@/models/Page";
 import Review from "@/models/Review";
 import Post from "@/models/Post";
 import Notification from "@/models/Notification";
-import { verifyWebhookSignature } from "@/lib/token";
 import { analyzeSentiment } from "@/lib/sentiment";
 import { MetaWebhookPayload } from "@/types/meta";
 
@@ -34,11 +34,14 @@ export async function GET(request: NextRequest) {
 
   const verifyToken = process.env.META_WEBHOOK_VERIFY_TOKEN;
 
+  console.log("Webhook verification request:", { mode, token, verifyToken });
+
   if (mode === "subscribe" && token === verifyToken) {
-    console.log("Webhook verified");
+    console.log("WEBHOOK_VERIFIED");
     return new Response(challenge, { status: 200 });
   }
 
+  console.log("Webhook verification failed");
   return new Response("Forbidden", { status: 403 });
 }
 
@@ -47,14 +50,26 @@ export async function POST(request: NextRequest) {
     const signature = request.headers.get("x-hub-signature-256");
     const body = await request.text();
 
-    if (
-      !signature ||
-      !verifyWebhookSignature(body, signature, process.env.META_WEBHOOK_SECRET!)
-    ) {
+    // Verify webhook signature
+    if (!signature) {
+      console.log("No signature found");
+      return new Response("No signature", { status: 401 });
+    }
+
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.META_WEBHOOK_SECRET!)
+      .update(body)
+      .digest("hex");
+
+    const signatureHash = signature.replace("sha256=", "");
+
+    if (signatureHash !== expectedSignature) {
+      console.log("Invalid signature");
       return new Response("Invalid signature", { status: 403 });
     }
 
     const payload: MetaWebhookPayload = JSON.parse(body);
+    console.log("Webhook received:", JSON.stringify(payload, null, 2));
 
     await dbConnect();
 

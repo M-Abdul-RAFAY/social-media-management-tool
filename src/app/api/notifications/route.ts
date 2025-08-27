@@ -13,6 +13,52 @@ import {
 
 export async function GET(request: NextRequest) {
   try {
+    // Development mode: return mock data
+    if (process.env.NODE_ENV === "development") {
+      return NextResponse.json({
+        success: true,
+        data: {
+          notifications: [
+            {
+              _id: "1",
+              type: "success",
+              title: "New Review",
+              message: "You received a 5-star review from John Smith!",
+              read: false,
+              createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+              data: { pageId: "fb_page_123", reviewId: "review_1" },
+            },
+            {
+              _id: "2",
+              type: "info",
+              title: "Post Performance",
+              message: "Your recent Instagram post is performing well!",
+              read: false,
+              createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000),
+              data: { pageId: "ig_page_456", postId: "ig_post_1" },
+            },
+            {
+              _id: "3",
+              type: "warning",
+              title: "Engagement Drop",
+              message: "Facebook engagement is down 15% this week",
+              read: true,
+              createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+              data: { pageId: "fb_page_123" },
+            },
+          ],
+          pagination: {
+            currentPage: 1,
+            totalPages: 1,
+            totalCount: 3,
+            hasNext: false,
+            hasPrev: false,
+          },
+          unreadCount: 2,
+        },
+      });
+    }
+
     const session = await getServerSession();
     if (!session?.user?.email) {
       throw new AuthenticationError();

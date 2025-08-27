@@ -57,7 +57,44 @@ src/
 └── types/                         # TypeScript type definitions
 ```
 
-## 🚀 Getting Started
+## 🚀 Quick Start
+
+### 1. Meta App Configuration
+
+The app currently uses **basic permissions** (`email`, `public_profile`) which work without business verification. For full functionality, you'll need to upgrade to advanced permissions.
+
+#### Basic Setup (Current)
+
+✅ **Works immediately** - Basic OAuth login
+❌ Cannot access Facebook/Instagram pages, posts, or insights
+
+#### Advanced Setup (Required for full features)
+
+To unlock the complete social media management functionality, you need:
+
+1. **Business Verification** (Required)
+
+   - Complete Meta Business Verification: https://developers.facebook.com/docs/development/release/business-verification
+   - This typically takes 3-5 business days
+
+2. **App Review** (Required for production)
+
+   - Submit your app for review to get these permissions:
+   - `pages_show_list` - List user's Facebook pages
+   - `pages_read_engagement` - Read page engagement data
+   - `pages_manage_posts` - Create/edit page posts
+   - `business_management` - Business-level access
+   - `instagram_basic` - Basic Instagram access
+   - `instagram_manage_comments` - Manage Instagram comments
+   - `instagram_content_publish` - Publish Instagram content
+
+3. **Update Permissions** (After approval)
+   ```typescript
+   // In src/app/api/auth/[...nextauth]/route.ts
+   scope: "email,public_profile,pages_show_list,pages_read_engagement,pages_manage_posts,business_management,instagram_basic,instagram_manage_comments,instagram_content_publish";
+   ```
+
+### 2. Environment Setup
 
 ### Prerequisites
 
@@ -267,4 +304,5 @@ For support and questions:
 - **Content Templates**: Reusable post templates
 - **Automated Posting**: AI-powered content scheduling
 - **Advanced Sentiment**: ML-based sentiment analysis
+
 # social-media-management-tool
