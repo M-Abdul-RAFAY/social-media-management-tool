@@ -46,13 +46,44 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  console.log("\n" + "=".repeat(60));
+  console.log("🚀 WEBHOOK POST REQUEST RECEIVED");
+  console.log("=".repeat(60));
+  console.log("⏰ Time:", new Date().toISOString());
+  console.log("🌐 URL:", request.url);
+  console.log("📋 Headers:", Object.fromEntries(request.headers.entries()));
+  console.log("=".repeat(60));
+
   try {
     const signature = request.headers.get("x-hub-signature-256");
     const body = await request.text();
 
-    // Verify webhook signature
+    console.log("📦 Raw body:", body);
+    console.log("🔐 Signature:", signature || "No signature");
+
+    // Check if this is a test request from Facebook Developer Tools
+    if (!signature && body.includes('"field"')) {
+      console.log("\n" + "🧪".repeat(20));
+      console.log("🧪 FACEBOOK TEST REQUEST DETECTED 🧪");
+      console.log("🧪".repeat(20));
+      try {
+        const testPayload = JSON.parse(body);
+        console.log(
+          "✅ Test payload received:",
+          JSON.stringify(testPayload, null, 2)
+        );
+        console.log("🧪".repeat(20) + "\n");
+        return new Response("Test received successfully", { status: 200 });
+      } catch (parseError) {
+        console.log("❌ Failed to parse test payload:", parseError);
+        console.log("🧪".repeat(20) + "\n");
+        return new Response("Invalid test payload", { status: 400 });
+      }
+    }
+
+    // Verify webhook signature for production webhooks
     if (!signature) {
-      console.log("No signature found");
+      console.log("No signature found - rejecting request");
       return new Response("No signature", { status: 401 });
     }
 
