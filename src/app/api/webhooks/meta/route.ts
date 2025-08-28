@@ -61,8 +61,13 @@ export async function POST(request: NextRequest) {
     console.log("📦 Raw body:", body);
     console.log("🔐 Signature:", signature || "No signature");
 
-    // Check if this is a test request from Facebook Developer Tools
-    if (!signature && body.includes('"field"')) {
+    // Check if this is a test request from Facebook Developer Tools (simple field test)
+    if (
+      !signature &&
+      body.includes('"field"') &&
+      body.includes('"value"') &&
+      !body.includes('"entry"')
+    ) {
       console.log("\n" + "🧪".repeat(20));
       console.log("🧪 FACEBOOK TEST REQUEST DETECTED 🧪");
       console.log("🧪".repeat(20));
@@ -81,8 +86,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Verify webhook signature for production webhooks
+    // Verify webhook signature for production webhooks (skip for local testing)
     if (!signature) {
+      // For local testing, allow requests without signature if they contain "entry"
+      if (body.includes('"entry"') && body.includes('"changes"')) {
+        console.log(
+          "⚠️  Processing test webhook without signature verification"
+        );
+        const payload: MetaWebhookPayload = JSON.parse(body);
+        console.log("Webhook received:", JSON.stringify(payload, null, 2));
+
+        await dbConnect();
+
+        for (const entry of payload.entry) {
+          for (const change of entry.changes) {
+            await processWebhookChange(entry.id, change);
+          }
+        }
+
+        return new Response("OK", { status: 200 });
+      }
+
       console.log("No signature found - rejecting request");
       return new Response("No signature", { status: 401 });
     }
@@ -121,11 +145,22 @@ async function processWebhookChange(pageId: string, change: WebhookChange) {
   const { field, value } = change;
 
   try {
+    // For testing purposes, handle messages even without a page in DB
+    if (field === "messages") {
+      console.log("\n🔥🔥🔥 MESSAGE WEBHOOK RECEIVED 🔥🔥🔥");
+      console.log("Page ID:", pageId);
+      console.log("Message data:", JSON.stringify(value, null, 2));
+
+      await handleMessageChangeTest(pageId, value);
+      return;
+    }
+
+    // For other webhook types, check if page exists in database
     const page: PageDocument | null = await Page.findOne({
       metaPageId: pageId,
     });
     if (!page) {
-      console.log(`Page not found: ${pageId}`);
+      console.log(`Page not found in database: ${pageId}`);
       return;
     }
 
@@ -144,6 +179,9 @@ async function processWebhookChange(pageId: string, change: WebhookChange) {
         break;
       case "conversations":
         await handleConversationChange(page, user, value);
+        break;
+      case "messages":
+        await handleMessageChange(page, user, value);
         break;
       default:
         console.log(`Unhandled webhook field: ${field}`);
@@ -242,5 +280,160 @@ async function handleConversationChange(
       message: `New message on ${page.name}`,
       data: { pageId: page._id, conversationId: value.conversation_id },
     });
+  }
+}
+
+async function handleMessageChangeTest(
+  pageId: string,
+  value: Record<string, unknown>
+) {
+  console.log("\n🔥🔥🔥 MESSAGE WEBHOOK TEST HANDLER 🔥🔥🔥");
+  console.log("Page ID:", pageId);
+  console.log("Message data:", JSON.stringify(value, null, 2));
+
+  // Handle incoming messages
+  if (value.messaging) {
+    const messagingEvents = value.messaging as Array<Record<string, unknown>>;
+
+    for (const event of messagingEvents) {
+      console.log(
+        "📨 Processing message event:",
+        JSON.stringify(event, null, 2)
+      );
+
+      // Handle regular messages
+      if (event.message) {
+        const message = event.message as Record<string, unknown>;
+        const sender = event.sender as Record<string, unknown>;
+        const recipient = event.recipient as Record<string, unknown>;
+
+        console.log("✉️ New message received:");
+        console.log("  From:", sender.id);
+        console.log("  To:", recipient.id);
+        console.log("  Text:", message.text);
+        console.log("  Message ID:", message.mid);
+        console.log("  Timestamp:", new Date(event.timestamp as number));
+      }
+
+      // Handle message delivery confirmations
+      if (event.delivery) {
+        const delivery = event.delivery as Record<string, unknown>;
+        console.log("✅ Message delivered:", JSON.stringify(delivery, null, 2));
+      }
+
+      // Handle message read confirmations
+      if (event.read) {
+        const read = event.read as Record<string, unknown>;
+        console.log("👀 Message read:", JSON.stringify(read, null, 2));
+      }
+
+      // Handle postbacks (from buttons, quick replies, etc.)
+      if (event.postback) {
+        const postback = event.postback as Record<string, unknown>;
+        console.log("🔘 Postback received:", JSON.stringify(postback, null, 2));
+      }
+    }
+  }
+
+  console.log("🔥".repeat(20) + "\n");
+}
+
+async function handleMessageChange(
+  page: PageDocument,
+  user: UserDocument,
+  value: Record<string, unknown>
+) {
+  console.log("\n🔥🔥🔥 MESSAGE WEBHOOK RECEIVED 🔥🔥🔥");
+  console.log("Page:", page.name);
+  console.log("Message data:", JSON.stringify(value, null, 2));
+
+  // Handle incoming messages
+  if (value.messaging) {
+    const messagingEvents = value.messaging as Array<Record<string, unknown>>;
+
+    for (const event of messagingEvents) {
+      console.log("📨 Processing message event:", event);
+
+      // Handle regular messages
+      if (event.message) {
+        const message = event.message as Record<string, unknown>;
+        const sender = event.sender as Record<string, unknown>;
+        const recipient = event.recipient as Record<string, unknown>;
+
+        console.log("✉️ New message received:");
+        console.log("  From:", sender.id);
+        console.log("  To:", recipient.id);
+        console.log("  Text:", message.text);
+        console.log("  Timestamp:", new Date(event.timestamp as number));
+
+        // Create notification
+        await Notification.create({
+          userId: user._id,
+          type: "info",
+          title: "New Message Received",
+          message: `New message: "${message.text}" from ${sender.id}`,
+          data: {
+            pageId: page._id,
+            senderId: sender.id,
+            messageId: message.mid,
+            text: message.text,
+          },
+        });
+
+        // Here you can add auto-reply logic if needed
+        // await sendReply(sender.id as string, "Thank you for your message!");
+      }
+
+      // Handle message delivery confirmations
+      if (event.delivery) {
+        const delivery = event.delivery as Record<string, unknown>;
+        console.log("✅ Message delivered:", delivery);
+      }
+
+      // Handle message read confirmations
+      if (event.read) {
+        const read = event.read as Record<string, unknown>;
+        console.log("👀 Message read:", read);
+      }
+
+      // Handle postbacks (from buttons, quick replies, etc.)
+      if (event.postback) {
+        const postback = event.postback as Record<string, unknown>;
+        console.log("🔘 Postback received:", postback);
+      }
+    }
+  }
+}
+
+// Helper function to send replies (optional)
+async function sendReply(recipientId: string, messageText: string) {
+  const pageAccessToken = process.env.META_PAGE_ACCESS_TOKEN;
+
+  if (!pageAccessToken) {
+    console.error("No page access token found");
+    return;
+  }
+
+  const messageData = {
+    recipient: { id: recipientId },
+    message: { text: messageText },
+  };
+
+  try {
+    const response = await fetch(
+      `https://graph.facebook.com/v${
+        process.env.META_GRAPH_API_VERSION || "v18.0"
+      }/me/messages?access_token=${pageAccessToken}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(messageData),
+      }
+    );
+
+    const result = await response.json();
+    console.log("Reply sent:", result);
+  } catch (error) {
+    console.error("Error sending reply:", error);
   }
 }
